@@ -13,26 +13,22 @@ from fastapi.responses import JSONResponse
 
 from db.database import engine
 from routers import dashboard, enrollment, verification
+from routers import auth, grades, sandbox, polls, electives, timetable
 
-# ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rogue_portal")
 
-# ── CORS origins ─────────────────────────────────────────────
-# Add your exact Framer preview/published URLs here.
-# The wildcard ("*") works for development; restrict for production.
 ALLOWED_ORIGINS: list[str] = [
-    "*",                                   # dev / Framer preview
-    "https://*.framer.app",               # all Framer preview sites
-    "https://*.framer.website",           # published Framer sites
+    "*",
+    "https://*.framer.app",
+    "https://*.framer.website",
 ]
 
-FRAMER_ORIGIN = os.environ.get("FRAMER_ORIGIN", "")   # set in Railway env vars
+FRAMER_ORIGIN = os.environ.get("FRAMER_ORIGIN", "")
 if FRAMER_ORIGIN:
     ALLOWED_ORIGINS.append(FRAMER_ORIGIN)
 
 
-# ── Lifespan (startup / shutdown) ────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀  Rogue Portal API starting up")
@@ -41,21 +37,20 @@ async def lifespan(app: FastAPI):
     logger.info("✅  Database connections closed")
 
 
-# ── App ───────────────────────────────────────────────────────
 app = FastAPI(
     title="Rogue University Portal API",
-    version="1.0.0",
+    version="2.0.0",
     description=(
-        "Backend for Vijaybhoomi's rogue scheduling portal. "
-        "Handles student dashboards, course enrollment with conflict detection, "
-        "and 5-department pre-verification approval pipeline."
+        "Full backend for Vijaybhoomi's rogue scheduling portal. "
+        "Handles auth (3 roles), student dashboards, course enrollment, "
+        "sandbox heatmap, course polls, elective preferences, "
+        "grade management, and timetable change requests."
     ),
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
 )
 
-# ── CORS middleware ───────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -67,7 +62,6 @@ app.add_middleware(
 )
 
 
-# ── Global exception handler ──────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
@@ -77,31 +71,32 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Routers ───────────────────────────────────────────────────
-app.include_router(
-    dashboard.router,
-    prefix="/api",
-    tags=["Dashboard"],
-)
-app.include_router(
-    enrollment.router,
-    prefix="/api/registration",
-    tags=["Enrollment"],
-)
-app.include_router(
-    verification.router,
-    prefix="/api/verification",
-    tags=["Verification"],
-)
+# ── Auth ──────────────────────────────────────────────────────
+app.include_router(auth.router,         prefix="/api/auth",         tags=["Auth"])
+
+# ── Student ───────────────────────────────────────────────────
+app.include_router(dashboard.router,    prefix="/api",              tags=["Dashboard"])
+app.include_router(enrollment.router,   prefix="/api/registration", tags=["Enrollment"])
+app.include_router(sandbox.router,      prefix="/api/sandbox",      tags=["Sandbox"])
+app.include_router(electives.router,    prefix="/api/electives",    tags=["Electives"])
+
+# ── Teacher ───────────────────────────────────────────────────
+app.include_router(grades.router,       prefix="/api/grades",       tags=["Grades"])
+app.include_router(timetable.router,    prefix="/api/timetable",    tags=["Timetable"])
+
+# ── Admin ─────────────────────────────────────────────────────
+app.include_router(verification.router, prefix="/api/verification", tags=["Verification"])
+app.include_router(polls.router,        prefix="/api/polls",        tags=["Polls"])
 
 
-# ── Health + root ─────────────────────────────────────────────
+# ── Health ────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 async def root():
     return {
         "service": "Rogue University Portal API",
-        "status": "ok",
-        "docs": "/docs",
+        "version": "2.0.0",
+        "status":  "ok",
+        "docs":    "/docs",
     }
 
 
